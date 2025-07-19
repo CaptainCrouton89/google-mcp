@@ -101,8 +101,11 @@ const envVars = parseEnvFile();
 const serverConfig = {
   command: "node",
   args: [path.join(currentDir, "dist/index.js")],
-  ...(Object.keys(envVars).length > 0 && { env: envVars }),
 };
+
+if (Object.keys(envVars).length > 0) {
+  serverConfig.env = envVars;
+}
 
 // Function to update Claude Desktop config
 function updateClaudeDesktopConfig() {

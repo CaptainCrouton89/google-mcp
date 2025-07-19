@@ -17,8 +17,10 @@
     "install-mcp": "tsc && chmod 755 dist/index.js && node scripts/update-config.js mcp"
   },
   "dependencies": {
+    "@googlemaps/google-maps-services-js": "^3.4.2",
     "@modelcontextprotocol/sdk": "^1.2.0",
     "axios": "^1.6.2",
+    "dotenv": "^17.2.0",
     "zod": "^3.22.4"
   },
   "devDependencies": {
