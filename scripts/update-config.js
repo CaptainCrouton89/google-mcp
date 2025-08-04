@@ -41,7 +41,10 @@ const claudeDesktopConfigPath = path.join(
 
 const cursorConfigPath = path.join(os.homedir(), ".cursor/mcp.json");
 
-const claudeCodeConfigPath = path.join(os.homedir(), ".claude.json");
+const claudeCodeConfigPath = path.join(
+  os.homedir(),
+  ".claude/mcp-library/.mcp.json"
+);
 
 const geminiConfigPath = path.join(os.homedir(), ".gemini/settings.json");
 
@@ -312,7 +315,13 @@ if (appsToInstall.includes("mcp")) {
 }
 
 console.log("");
-if (claudeSuccess || cursorSuccess || claudeCodeSuccess || geminiSuccess || mcpSuccess) {
+if (
+  claudeSuccess ||
+  cursorSuccess ||
+  claudeCodeSuccess ||
+  geminiSuccess ||
+  mcpSuccess
+) {
   console.log("🎉 Installation completed!");
 
   if (claudeSuccess) {
@@ -336,13 +345,6 @@ if (claudeSuccess || cursorSuccess || claudeCodeSuccess || geminiSuccess || mcpS
   if (mcpSuccess) {
     console.log("   • MCP configuration updated in .mcp.json");
   }
-
-  console.log("");
-  console.log("📖 Usage:");
-  console.log(
-    "   You can now use the 'run_parallel_claude_tasks' tool to run multiple"
-  );
-  console.log("   Claude prompts in parallel with optional file contexts.");
 } else {
   console.log("❌ Installation failed for selected applications");
   console.log(
