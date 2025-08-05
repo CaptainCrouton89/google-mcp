@@ -1,197 +1,186 @@
-# MCP Server Boilerplate
+# Google MCP Server
 
-A starter template for building MCP (Model Context Protocol) servers. This boilerplate provides a clean foundation for creating your own MCP server that can integrate with Claude, Cursor, or other MCP-compatible AI assistants.
-
-## Purpose
-
-This boilerplate helps you quickly start building:
-
-- Custom tools for AI assistants
-- Resource providers for dynamic content
-- Prompt templates for common operations
-- Integration points for external APIs and services
+A comprehensive Model Context Protocol (MCP) server that provides access to Google services including Maps, Finance, Flights, Gmail, and Calendar through a unified API.
 
 ## Features
 
-- Simple "hello-world" tool example
-- TypeScript support with proper type definitions
-- Easy installation scripts for different MCP clients
-- Clean project structure ready for customization
+### 🗺️ Google Maps & Places
+- **Geocoding**: Convert addresses to coordinates and vice versa
+- **Places Search**: Find businesses, landmarks, and points of interest
+- **Directions**: Get turn-by-turn directions between locations
+- **Distance Matrix**: Calculate travel time and distance between multiple points
+- **Place Details**: Get detailed information about specific places
 
-## How It Works
+### 📈 Google Finance
+- **Stock Search**: Search for stocks, indices, mutual funds, currencies, and futures
+- **Market Data**: Get current prices, movement, and market information
+- **Financial News**: Access top financial news related to securities
 
-This MCP server template provides:
+### ✈️ Google Flights
+- **Airport Search**: Find flights and airport information
+- **Flight Pricing**: Get flight prices and insights
+- **Multi-city Trips**: Support for complex multi-destination journeys
 
-1. A basic server setup using the MCP SDK
-2. Example tool implementation
-3. Build and installation scripts
-4. TypeScript configuration for development
+### 📧 Gmail
+- **Send Emails**: Send emails with subject, body, CC, and BCC
+- **Read Emails**: List and search emails with Gmail query syntax
+- **Email Details**: Get full email content by message ID
+- **Label Management**: Access Gmail labels and organization
 
-The included example demonstrates how to create a simple tool that takes a name parameter and returns a greeting.
+### 📅 Google Calendar
+- **Event Management**: Create, read, update, and delete calendar events
+- **Multi-Calendar Support**: Work with multiple calendars (Personal, Work, Travel)
+- **Event Listing**: List events with filters and date ranges
+- **Calendar Management**: List and access different calendars
 
-## Getting Started
+## Installation
+
+### Prerequisites
+- Node.js 18+ 
+- pnpm (recommended) or npm
+
+### Setup
+1. Clone the repository:
+   ```bash
+   git clone <repository-url>
+   cd google-mcp
+   ```
+
+2. Install dependencies:
+   ```bash
+   pnpm install
+   ```
+
+3. Build the project:
+   ```bash
+   pnpm run build
+   ```
+
+### MCP Client Integration
+
+Install the server to your preferred MCP clients:
 
 ```bash
-# Clone the boilerplate
-git clone <your-repo-url>
-cd mcp-server-boilerplate
-
-# Install dependencies
-pnpm install
-
-# Build the project
-pnpm run build
-
-# Start the server
-pnpm start
-```
-
-## Installation Scripts
-
-This boilerplate includes convenient installation scripts for different MCP clients:
-
-```bash
-# For Claude Desktop
-pnpm run install-desktop
-
-# For Cursor
-pnpm run install-cursor
-
-# For Claude Code
-pnpm run install-code
-
-# Generic installation
+# Install to all MCP clients
 pnpm run install-server
+
+# Install to specific clients
+pnpm run install-desktop    # Claude Desktop
+pnpm run install-cursor     # Cursor IDE
+pnpm run install-code       # Claude Code
+pnpm run install-mcp        # Local .mcp.json only
 ```
 
-These scripts will build the project and automatically update the appropriate configuration files.
+## Configuration
 
-## Usage with Claude Desktop
+### Environment Variables
+Create a `.env.local` file in the project root with your Google API credentials:
 
-The installation script will automatically add the configuration, but you can also manually add it to your `claude_desktop_config.json` file:
-
-```json
-{
-  "mcpServers": {
-    "your-server-name": {
-      "command": "node",
-      "args": ["/path/to/your/dist/index.js"]
-    }
-  }
-}
+```env
+GOOGLE_MAPS_API_KEY=your_google_maps_api_key
+GOOGLE_CLIENT_ID=your_oauth_client_id
+GOOGLE_CLIENT_SECRET=your_oauth_client_secret
+GOOGLE_REFRESH_TOKEN=your_refresh_token
 ```
 
-Then restart Claude Desktop to connect to the server.
+### Google API Setup
+1. **Google Maps API**: Enable Maps, Places, and Directions APIs in Google Cloud Console
+2. **Gmail/Calendar**: Set up OAuth 2.0 credentials and obtain refresh tokens
+3. **Finance/Flights**: Uses Google's public APIs (no additional setup required)
 
-## Customizing Your Server
+## Usage
 
-### Adding Tools
+### Running the Server
+```bash
+# Start the compiled server
+pnpm start
 
-Tools are functions that the AI assistant can call. Here's the basic structure:
-
-```typescript
-server.tool(
-  "tool-name",
-  "Description of what the tool does",
-  {
-    // Zod schema for parameters
-    param1: z.string().describe("Description of parameter"),
-    param2: z.number().optional().describe("Optional parameter"),
-  },
-  async ({ param1, param2 }) => {
-    // Your tool logic here
-    return {
-      content: [
-        {
-          type: "text",
-          text: "Your response",
-        },
-      ],
-    };
-  }
-);
+# Or run in development mode
+node dist/index.js
 ```
 
-### Adding Resources
+### Available Tools
 
-Resources provide dynamic content that the AI can access:
+#### Maps & Places
+- `geocode` - Convert address to coordinates
+- `reverse-geocode` - Convert coordinates to address  
+- `places-search` - Search for places by text query
+- `get-directions` - Get directions between locations
+- `distance-matrix` - Calculate distances between multiple points
+- `place-details` - Get detailed place information
 
-```typescript
-server.resource(
-  "resource://example/{id}",
-  "Description of the resource",
-  async (uri) => {
-    // Extract parameters from URI
-    const id = uri.path.split("/").pop();
+#### Finance
+- `finance-search` - Search stocks, currencies, and financial instruments
 
-    return {
-      contents: [
-        {
-          uri,
-          mimeType: "text/plain",
-          text: `Content for ${id}`,
-        },
-      ],
-    };
-  }
-);
-```
+#### Flights
+- `airports-search` - Search flights and airport information
 
-### Adding Prompts
+#### Gmail
+- `gmail-send-email` - Send emails
+- `gmail-read-emails` - List/search emails
+- `gmail-get-email` - Get specific email by ID
+- `gmail-get-labels` - List Gmail labels
 
-Prompts are reusable templates:
-
-```typescript
-server.prompt(
-  "prompt-name",
-  "Description of the prompt",
-  {
-    // Parameters for the prompt
-    topic: z.string().describe("The topic to discuss"),
-  },
-  async ({ topic }) => {
-    return {
-      description: `A prompt about ${topic}`,
-      messages: [
-        {
-          role: "user",
-          content: {
-            type: "text",
-            text: `Please help me with ${topic}`,
-          },
-        },
-      ],
-    };
-  }
-);
-```
-
-## Project Structure
-
-```
-├── src/
-│   └── index.ts          # Main server implementation
-├── scripts/              # Installation and utility scripts
-├── dist/                 # Compiled JavaScript (generated)
-├── package.json          # Project configuration
-├── tsconfig.json         # TypeScript configuration
-└── README.md            # This file
-```
+#### Calendar
+- `calendar-create-event` - Create new events
+- `calendar-list-events` - List events with filters
+- `calendar-get-event` - Get specific event details
+- `calendar-update-event` - Update existing events
+- `calendar-delete-event` - Delete events
+- `calendar-list-calendars` - List available calendars
 
 ## Development
 
-1. Make changes to `src/index.ts`
-2. Run `pnpm run build` to compile
-3. Test your server with `pnpm start`
-4. Use the installation scripts to update your MCP client configuration
+### Project Structure
+```
+src/
+├── index.ts       # Main MCP server implementation
+├── maps.ts        # Google Maps & Places functionality
+├── finance.ts     # Google Finance integration
+├── airports.ts    # Google Flights integration  
+├── gmail.ts       # Gmail API integration
+└── calendar.ts    # Google Calendar integration
 
-## Next Steps
+scripts/
+└── update-config.js   # MCP client configuration installer
 
-1. Update `package.json` with your project details
-2. Customize the server name and tools in `src/index.ts`
-3. Add your own tools, resources, and prompts
-4. Integrate with external APIs or databases as needed
+dist/             # Compiled JavaScript output
+```
+
+### Key Technologies
+- **MCP SDK**: `@modelcontextprotocol/sdk` for protocol implementation
+- **Schema Validation**: Zod for runtime type checking
+- **Google APIs**: Official Google client libraries
+- **TypeScript**: Full type safety with ES2022 target
+- **Transport**: StdioServerTransport for MCP communication
+
+### Development Workflow
+1. Make changes to TypeScript files in `src/`
+2. Build: `pnpm run build`
+3. Test: `pnpm start`
+4. Install to clients: `pnpm run install-server`
+5. Restart MCP clients to load changes
+
+### Adding New Tools
+1. Define Zod schema for parameters
+2. Implement handler function
+3. Register tool in `src/index.ts` using `server.tool()`
+4. Build and reinstall to test
+
+## Architecture
+
+This MCP server follows these design patterns:
+
+- **Modular Design**: Each Google service is in its own module
+- **Schema Validation**: All parameters validated with Zod schemas
+- **Error Handling**: Comprehensive error handling with meaningful messages
+- **Type Safety**: Full TypeScript coverage with strict mode
+- **Transport Agnostic**: Uses MCP's standard transport layer
 
 ## License
 
-MIT
+[License information]
+
+## Contributing
+
+[Contribution guidelines]
