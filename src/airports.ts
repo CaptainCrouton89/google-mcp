@@ -15,15 +15,15 @@ const airportsSearchSchema = z.object({
   return_date: z
     .string()
     .optional()
-    .describe("Return date in YYYY-MM-DD format for round-trip"),
+    .describe("Return date in YYYY-MM-DD format for round-trip (REQUIRED when type=1)"),
   multi_city_json: z
     .string()
     .optional()
-    .describe("JSON string for multi-city trips with multiple legs"),
+    .describe("JSON string for multi-city trips with multiple legs (required when type=3)"),
   type: z
     .number()
     .optional()
-    .describe("Trip type indicator (e.g., 3 for multi-city)"),
+    .describe("Trip type: 1=Round-trip (requires return_date), 2=One-way, 3=Multi-city (requires multi_city_json). Defaults to one-way if not specified."),
   max_best_flights: z
     .number()
     .optional()

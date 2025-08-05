@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": "/Users/silasrhyneer/Code/MCP/google-mcp/logs/.55ce9dfdd7fda230d67a7d3586a3ca296ef26335-audit.json",
+    "files": [
+        {
+            "date": 1754360834628,
+            "name": "/Users/silasrhyneer/Code/MCP/google-mcp/logs/mcp-puppeteer-2025-08-04.log",
+            "hash": "fa3151dbf57ce7a08e1ca0be2485abde602719284973324538e0a249806110d5"
+        }
+    ],
+    "hashType": "sha256"
+}

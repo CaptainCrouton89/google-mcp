@@ -4,3 +4,4 @@ dist
 .env.local
 .DS_Store
 .mcp.json
+service-account-key.json

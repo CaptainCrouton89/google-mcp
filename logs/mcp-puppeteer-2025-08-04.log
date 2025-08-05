@@ -1,0 +1,10 @@
+{"level":"info","message":"Starting MCP server","service":"mcp-puppeteer","timestamp":"2025-08-04 19:27:14.662"}
+{"level":"info","message":"MCP server started successfully","service":"mcp-puppeteer","timestamp":"2025-08-04 19:27:14.663"}
+{"arguments":{},"level":"debug","message":"Tool call received","service":"mcp-puppeteer","timestamp":"2025-08-04 19:27:38.036","tool":"puppeteer_connect_active_tab"}
+{"0":"n","1":"p","2":"x","level":"info","message":"Launching browser with config:","service":"mcp-puppeteer","timestamp":"2025-08-04 19:27:38.037"}
+{"level":"info","message":"Browser launched successfully","service":"mcp-puppeteer","timestamp":"2025-08-04 19:27:41.361"}
+{"arguments":{},"level":"debug","message":"Tool call received","service":"mcp-puppeteer","timestamp":"2025-08-04 19:28:08.977","tool":"puppeteer_connect_active_tab"}
+{"arguments":{"url":"https://app.loops.so/unsubscribe/cmdxjct3x00dr01p349nyftht/8d8b2b72857676d646e370a0c587cbdd6a6b10baccbeced8450018f010ae0ed2"},"level":"debug","message":"Tool call received","service":"mcp-puppeteer","timestamp":"2025-08-04 19:28:13.694","tool":"puppeteer_navigate"}
+{"level":"info","message":"Navigating to URL","service":"mcp-puppeteer","timestamp":"2025-08-04 19:28:13.694","url":"https://app.loops.so/unsubscribe/cmdxjct3x00dr01p349nyftht/8d8b2b72857676d646e370a0c587cbdd6a6b10baccbeced8450018f010ae0ed2"}
+{"error":"HTTP error: 403 ","level":"error","message":"Navigation failed","service":"mcp-puppeteer","timestamp":"2025-08-04 19:28:17.225","url":"https://app.loops.so/unsubscribe/cmdxjct3x00dr01p349nyftht/8d8b2b72857676d646e370a0c587cbdd6a6b10baccbeced8450018f010ae0ed2"}
+{"level":"info","message":"Puppeteer MCP Server closing","service":"mcp-puppeteer","timestamp":"2025-08-04 19:29:03.274"}

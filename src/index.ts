@@ -4,7 +4,31 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import * as dotenv from "dotenv";
 import { airportsSearchSchema, searchAirports } from "./airports.js";
+import {
+  createEvent,
+  createEventSchema,
+  deleteEvent,
+  deleteEventSchema,
+  getEvent,
+  getEventSchema,
+  initializeCalendarData,
+  listCalendars,
+  listCalendarsSchema,
+  listEvents,
+  listEventsSchema,
+  updateEvent,
+  updateEventSchema,
+} from "./calendar.js";
 import { financeSearchSchema, searchFinance } from "./finance.js";
+import {
+  getEmail,
+  getEmailSchema,
+  getLabels,
+  readEmails,
+  readEmailsSchema,
+  sendEmail,
+  sendEmailSchema,
+} from "./gmail.js";
 import {
   directionsSchema,
   distanceMatrix,
@@ -20,11 +44,15 @@ import {
   reverseGeocodeSchema,
 } from "./maps.js";
 
+// Temporarily redirect stdout to prevent dotenv logging
+const originalWrite = process.stdout.write;
+process.stdout.write = () => true;
 dotenv.config({ path: ".env.local" });
+process.stdout.write = originalWrite;
 
 // Create the MCP server
 const server = new McpServer({
-  name: "maps-mcp",
+  name: "google-mcp",
   version: "1.0.0",
 });
 
@@ -150,12 +178,107 @@ server.tool(
   }
 );
 
+// Gmail tools
+server.tool(
+  "gmail-send-email",
+  "Send an email using Gmail",
+  sendEmailSchema.shape,
+  async (params) => {
+    return await sendEmail(params);
+  }
+);
+
+server.tool(
+  "gmail-read-emails",
+  "Read/list emails from Gmail with optional search query",
+  readEmailsSchema.shape,
+  async (params) => {
+    return await readEmails(params);
+  }
+);
+
+server.tool(
+  "gmail-get-email",
+  "Get a specific email by message ID",
+  getEmailSchema.shape,
+  async (params) => {
+    return await getEmail(params);
+  }
+);
+
+server.tool("gmail-get-labels", "Get all Gmail labels", {}, async () => {
+  return await getLabels();
+});
+
+// Calendar tools will be registered after initialization
+function registerCalendarTools() {
+  server.tool(
+    "calendar-create-event",
+    "Create a new calendar event. Current time: " + new Date().toLocaleString(),
+    createEventSchema().shape,
+    async (params) => {
+      return await createEvent(params);
+    }
+  );
+
+  server.tool(
+    "calendar-list-events",
+    "List calendar events with optional filters",
+    listEventsSchema().shape,
+    async (params) => {
+      return await listEvents(params);
+    }
+  );
+
+  server.tool(
+    "calendar-get-event",
+    "Get a specific calendar event by ID",
+    getEventSchema().shape,
+    async (params) => {
+      return await getEvent(params);
+    }
+  );
+
+  server.tool(
+    "calendar-update-event",
+    "Update an existing calendar event",
+    updateEventSchema().shape,
+    async (params) => {
+      return await updateEvent(params);
+    }
+  );
+
+  server.tool(
+    "calendar-delete-event",
+    "Delete a calendar event",
+    deleteEventSchema().shape,
+    async (params) => {
+      return await deleteEvent(params);
+    }
+  );
+
+  server.tool(
+    "calendar-list-calendars",
+    "List all available calendars",
+    listCalendarsSchema().shape,
+    async (params) => {
+      return await listCalendars(params);
+    }
+  );
+}
+
 // Start the server
 async function main() {
   try {
+    // Initialize calendar data on server start
+    await initializeCalendarData();
+
+    // Register calendar tools after initialization
+    registerCalendarTools();
+
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    console.error("MCP Hello World Server running...");
+    console.error("Google MCP Server running...");
   } catch (error) {
     console.error("Error starting server:", error);
     process.exit(1);
