@@ -2,6 +2,10 @@
 
 A comprehensive Model Context Protocol (MCP) server that provides access to Google services including Maps, Finance, Flights, Gmail, and Calendar through a unified API.
 
+<a href="https://glama.ai/mcp/servers/@CaptainCrouton89/maps-mcp">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/@CaptainCrouton89/maps-mcp/badge" alt="Server Boilerplate MCP server" />
+</a>
+
 ## Features
 
 ### 🗺️ Google Maps & Places
