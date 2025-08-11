@@ -6,8 +6,8 @@ const SERPAPI_BASE_URL = "https://serpapi.com/search";
 const airportsSearchSchema = z.object({
   departure_id: z
     .string()
-    .describe("Departure airport code (e.g., 'CDG', 'AUS')"),
-  arrival_id: z.string().describe("Arrival airport code (e.g., 'NRT', 'LAX')"),
+    .describe("Departure airport code (e.g., 'CDG', 'AUS', 'LAX', 'SFO'). Use 3-letter IATA codes."),
+  arrival_id: z.string().describe("Arrival airport code (e.g., 'NRT', 'LAX', 'JFK', 'LHR'). Use 3-letter IATA codes."),
   outbound_date: z
     .string()
     .optional()
@@ -23,7 +23,8 @@ const airportsSearchSchema = z.object({
   type: z
     .number()
     .optional()
-    .describe("Trip type: 1=Round-trip (requires return_date), 2=One-way, 3=Multi-city (requires multi_city_json). Defaults to one-way if not specified."),
+    .default(2)
+    .describe("Trip type: 1=Round-trip (requires return_date), 2=One-way (default), 3=Multi-city (requires multi_city_json). Use type=2 for one-way trips to avoid errors."),
   max_best_flights: z
     .number()
     .optional()
@@ -49,27 +50,29 @@ const airportsSearchSchema = z.object({
     .optional()
     .default(true)
     .describe("Return only essential flight information"),
+  include_links: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe("Include booking links for each flight (off by default)"),
 });
 
-interface FilteredFlightResult {
-  search_metadata?: any;
-  search_parameters?: any;
-  summary?: {
-    route: string;
-    best_price: number;
-    best_airline?: string;
-    flight_count: number;
-  };
-  best_flights?: any[];
-  other_flights?: any[];
-  price_insights?: any;
-  airports?: any;
+
+function formatDuration(minutes: number | string): string {
+  const mins = typeof minutes === 'string' ? parseInt(minutes) : minutes;
+  if (isNaN(mins)) return 'Unknown';
+  const hours = Math.floor(mins / 60);
+  const remainingMins = mins % 60;
+  return `${hours}:${remainingMins.toString().padStart(2, '0')}`;
 }
 
 function formatFlightToMarkdown(data: any, params: z.infer<typeof airportsSearchSchema>): string {
   if (!data) return "No flight data available.";
 
-  let markdown = `# Flight Search: ${params.departure_id} → ${params.arrival_id}\n\n`;
+  let markdown = `# ${params.departure_id} → ${params.arrival_id}\n\n`;
+  
+  // Get the Google Flights URL for booking
+  const googleFlightsUrl = data.search_metadata?.google_flights_url;
 
   // Add route summary
   if (params.summary_only) {
@@ -77,48 +80,48 @@ function formatFlightToMarkdown(data: any, params: z.infer<typeof airportsSearch
     const bestPrice = bestFlight?.price || data.price_insights?.lowest_price;
     const flightCount = (data.best_flights?.length || 0) + (data.other_flights?.length || 0);
     
-    markdown += `## Summary\n`;
-    markdown += `- **Route**: ${params.departure_id} → ${params.arrival_id}\n`;
-    markdown += `- **Best Price**: $${bestPrice}\n`;
+    markdown += `**Best Price**: $${bestPrice}\n`;
     if (bestFlight?.flights?.[0]?.airline) {
-      markdown += `- **Best Airline**: ${bestFlight.flights[0].airline}\n`;
+      markdown += `**Airline**: ${bestFlight.flights[0].airline}\n`;
     }
-    markdown += `- **Total Flights Found**: ${flightCount}\n\n`;
+    markdown += `**Flights Found**: ${flightCount}\n\n`;
 
     if (params.include_price_insights !== false && data.price_insights) {
-      markdown += `### Price Insights\n`;
-      markdown += `- **Lowest Price**: $${data.price_insights.lowest_price}\n`;
-      markdown += `- **Price Level**: ${data.price_insights.price_level}\n`;
+      markdown += `**Price Level**: ${data.price_insights.price_level}\n`;
       if (data.price_insights.typical_price_range) {
-        markdown += `- **Typical Range**: $${data.price_insights.typical_price_range.join(' - $')}\n`;
+        markdown += `**Typical Range**: $${data.price_insights.typical_price_range.join('-$')}\n`;
       }
-      markdown += `\n`;
     }
     return markdown;
   }
 
   // Add best flights
   if (data.best_flights && params.max_best_flights && params.max_best_flights > 0) {
-    markdown += `## Best Flights\n\n`;
+    markdown += `## Best Options\n\n`;
     const bestFlights = data.best_flights.slice(0, params.max_best_flights);
     
-    bestFlights.forEach((flight: any, index: number) => {
-      markdown += `### Flight ${index + 1} - $${flight.price}\n`;
-      markdown += `- **Duration**: ${flight.total_duration}\n`;
-      markdown += `- **Type**: ${flight.type}\n`;
-      if (flight.carbon_emissions?.this_flight) {
-        markdown += `- **CO₂ Emissions**: ${flight.carbon_emissions.this_flight}kg\n`;
+    bestFlights.forEach((flight: any) => {
+      const stops = flight.flights && flight.flights.length > 1 ? `${flight.flights.length - 1} stop${flight.flights.length > 2 ? 's' : ''}` : 'Direct';
+      const totalDuration = formatDuration(flight.total_duration);
+      markdown += `### $${flight.price} • ${totalDuration} • ${stops}\n`;
+      if (params.include_links && googleFlightsUrl) {
+        markdown += `**URL**: ${googleFlightsUrl}\n`;
       }
       
       if (flight.flights && flight.flights.length > 0) {
-        markdown += `- **Segments**:\n`;
-        flight.flights.forEach((segment: any, segIndex: number) => {
-          markdown += `  ${segIndex + 1}. **${segment.airline}** ${segment.flight_number}\n`;
-          markdown += `     - ${segment.departure_airport} → ${segment.arrival_airport}\n`;
-          markdown += `     - Duration: ${segment.duration}\n`;
-          markdown += `     - Class: ${segment.travel_class}\n`;
-          if (segment.overnight) markdown += `     - Overnight flight\n`;
-          if (segment.often_delayed_by_over_30_min) markdown += `     - ⚠️ Often delayed >30min\n`;
+        flight.flights.forEach((segment: any, index: number) => {
+          const depAirport = segment.departure_airport?.code || segment.departure_airport?.name || segment.departure_airport || 'Unknown';
+          const arrAirport = segment.arrival_airport?.code || segment.arrival_airport?.name || segment.arrival_airport || 'Unknown';
+          const depTime = segment.departure_airport?.time || 'Unknown';
+          const arrTime = segment.arrival_airport?.time || 'Unknown';
+          markdown += `${segment.airline} ${segment.flight_number}: ${depAirport} ${depTime} → ${arrAirport} ${arrTime}\n`;
+          
+          // Add layover information if this is not the last segment
+          if (index < flight.flights.length - 1 && flight.layovers?.[index]) {
+            const layover = flight.layovers[index];
+            const layoverDuration = formatDuration(layover.duration);
+            markdown += `  Layover: ${layoverDuration}\n`;
+          }
         });
       }
       markdown += `\n`;
@@ -127,31 +130,31 @@ function formatFlightToMarkdown(data: any, params: z.infer<typeof airportsSearch
 
   // Add other flights
   if (data.other_flights && params.max_other_flights && params.max_other_flights > 0) {
-    markdown += `## Other Flight Options\n\n`;
+    markdown += `## Other Options\n\n`;
     const otherFlights = data.other_flights.slice(0, params.max_other_flights);
     
-    otherFlights.forEach((flight: any, index: number) => {
-      markdown += `### Option ${index + 1} - $${flight.price}\n`;
-      markdown += `- **Duration**: ${flight.total_duration}\n`;
-      markdown += `- **Type**: ${flight.type}\n`;
-      
-      if (flight.layovers && flight.layovers.length > 0) {
-        markdown += `- **Layovers**: ${flight.layovers.map((l: any) => `${l.name} (${l.duration})`).join(', ')}\n`;
-      }
-      
-      if (flight.carbon_emissions?.this_flight) {
-        markdown += `- **CO₂ Emissions**: ${flight.carbon_emissions.this_flight}kg\n`;
+    otherFlights.forEach((flight: any) => {
+      const stops = flight.flights && flight.flights.length > 1 ? `${flight.flights.length - 1} stop${flight.flights.length > 2 ? 's' : ''}` : 'Direct';
+      const totalDuration = formatDuration(flight.total_duration);
+      markdown += `### $${flight.price} • ${totalDuration} • ${stops}\n`;
+      if (params.include_links && googleFlightsUrl) {
+        markdown += `**URL**: ${googleFlightsUrl}\n`;
       }
       
       if (flight.flights && flight.flights.length > 0) {
-        markdown += `- **Segments**:\n`;
-        flight.flights.forEach((segment: any, segIndex: number) => {
-          markdown += `  ${segIndex + 1}. **${segment.airline}** ${segment.flight_number}\n`;
-          markdown += `     - ${segment.departure_airport} → ${segment.arrival_airport}\n`;
-          markdown += `     - Duration: ${segment.duration}\n`;
-          markdown += `     - Class: ${segment.travel_class}\n`;
-          if (segment.overnight) markdown += `     - Overnight flight\n`;
-          if (segment.often_delayed_by_over_30_min) markdown += `     - ⚠️ Often delayed >30min\n`;
+        flight.flights.forEach((segment: any, index: number) => {
+          const depAirport = segment.departure_airport?.code || segment.departure_airport?.name || segment.departure_airport || 'Unknown';
+          const arrAirport = segment.arrival_airport?.code || segment.arrival_airport?.name || segment.arrival_airport || 'Unknown';
+          const depTime = segment.departure_airport?.time || 'Unknown';
+          const arrTime = segment.arrival_airport?.time || 'Unknown';
+          markdown += `${segment.airline} ${segment.flight_number}: ${depAirport} ${depTime} → ${arrAirport} ${arrTime}\n`;
+          
+          // Add layover information if this is not the last segment
+          if (index < flight.flights.length - 1 && flight.layovers?.[index]) {
+            const layover = flight.layovers[index];
+            const layoverDuration = formatDuration(layover.duration);
+            markdown += `  Layover: ${layoverDuration}\n`;
+          }
         });
       }
       markdown += `\n`;
@@ -160,115 +163,12 @@ function formatFlightToMarkdown(data: any, params: z.infer<typeof airportsSearch
 
   // Add price insights for detailed view
   if (params.include_price_insights !== false && data.price_insights && !params.summary_only) {
-    markdown += `## Price Insights\n`;
-    markdown += `- **Lowest Price**: $${data.price_insights.lowest_price}\n`;
-    markdown += `- **Price Level**: ${data.price_insights.price_level}\n`;
-    if (data.price_insights.typical_price_range) {
-      markdown += `- **Typical Range**: $${data.price_insights.typical_price_range.join(' - $')}\n`;
-    }
-    markdown += `\n`;
+    markdown += `**Price Level**: ${data.price_insights.price_level} • Lowest: $${data.price_insights.lowest_price}\n`;
   }
 
   return markdown;
 }
 
-function filterFlightResponse(
-  data: any,
-  params: z.infer<typeof airportsSearchSchema>
-): FilteredFlightResult | any {
-  if (params.summary_only) {
-    const bestFlight = data.best_flights?.[0];
-    return {
-      search_metadata: data.search_metadata,
-      search_parameters: data.search_parameters,
-      summary: {
-        route: `${params.departure_id} → ${params.arrival_id}`,
-        best_price: bestFlight?.price || data.price_insights?.lowest_price,
-        best_airline: bestFlight?.flights?.[0]?.airline,
-        flight_count:
-          (data.best_flights?.length || 0) + (data.other_flights?.length || 0),
-      },
-      ...(params.include_price_insights !== false &&
-        data.price_insights && {
-          price_insights: {
-            lowest_price: data.price_insights.lowest_price,
-            price_level: data.price_insights.price_level,
-            typical_price_range: data.price_insights.typical_price_range,
-          },
-        }),
-    };
-  }
-
-  const filtered: FilteredFlightResult = {
-    search_metadata: data.search_metadata,
-    search_parameters: data.search_parameters,
-  };
-
-  if (
-    data.best_flights &&
-    params.max_best_flights &&
-    params.max_best_flights > 0
-  ) {
-    filtered.best_flights = data.best_flights
-      .slice(0, params.max_best_flights)
-      .map((flight: any) => ({
-        flights: flight.flights?.map((f: any) => ({
-          departure_airport: f.departure_airport,
-          arrival_airport: f.arrival_airport,
-          duration: f.duration,
-          airline: f.airline,
-          flight_number: f.flight_number,
-          travel_class: f.travel_class,
-          overnight: f.overnight,
-          often_delayed_by_over_30_min: f.often_delayed_by_over_30_min,
-        })),
-        total_duration: flight.total_duration,
-        price: flight.price,
-        type: flight.type,
-        carbon_emissions: flight.carbon_emissions,
-      }));
-  }
-
-  if (
-    data.other_flights &&
-    params.max_other_flights &&
-    params.max_other_flights > 0
-  ) {
-    filtered.other_flights = data.other_flights
-      .slice(0, params.max_other_flights)
-      .map((flight: any) => ({
-        flights: flight.flights?.map((f: any) => ({
-          departure_airport: f.departure_airport,
-          arrival_airport: f.arrival_airport,
-          duration: f.duration,
-          airline: f.airline,
-          flight_number: f.flight_number,
-          travel_class: f.travel_class,
-          overnight: f.overnight,
-          often_delayed_by_over_30_min: f.often_delayed_by_over_30_min,
-        })),
-        layovers: flight.layovers,
-        total_duration: flight.total_duration,
-        price: flight.price,
-        type: flight.type,
-        carbon_emissions: flight.carbon_emissions,
-      }));
-  }
-
-  if (params.include_price_insights !== false && data.price_insights) {
-    filtered.price_insights = {
-      lowest_price: data.price_insights.lowest_price,
-      price_level: data.price_insights.price_level,
-      typical_price_range: data.price_insights.typical_price_range,
-    };
-  }
-
-  if (params.include_airports && data.airports) {
-    filtered.airports = data.airports;
-  }
-
-  return filtered;
-}
 
 export async function searchAirports(
   params: z.infer<typeof airportsSearchSchema>
@@ -284,6 +184,7 @@ export async function searchAirports(
     include_price_insights,
     include_airports,
     summary_only,
+    include_links,
     ...apiParams
   } = params;
 
