@@ -66,6 +66,112 @@ interface FilteredFlightResult {
   airports?: any;
 }
 
+function formatFlightToMarkdown(data: any, params: z.infer<typeof airportsSearchSchema>): string {
+  if (!data) return "No flight data available.";
+
+  let markdown = `# Flight Search: ${params.departure_id} → ${params.arrival_id}\n\n`;
+
+  // Add route summary
+  if (params.summary_only) {
+    const bestFlight = data.best_flights?.[0];
+    const bestPrice = bestFlight?.price || data.price_insights?.lowest_price;
+    const flightCount = (data.best_flights?.length || 0) + (data.other_flights?.length || 0);
+    
+    markdown += `## Summary\n`;
+    markdown += `- **Route**: ${params.departure_id} → ${params.arrival_id}\n`;
+    markdown += `- **Best Price**: $${bestPrice}\n`;
+    if (bestFlight?.flights?.[0]?.airline) {
+      markdown += `- **Best Airline**: ${bestFlight.flights[0].airline}\n`;
+    }
+    markdown += `- **Total Flights Found**: ${flightCount}\n\n`;
+
+    if (params.include_price_insights !== false && data.price_insights) {
+      markdown += `### Price Insights\n`;
+      markdown += `- **Lowest Price**: $${data.price_insights.lowest_price}\n`;
+      markdown += `- **Price Level**: ${data.price_insights.price_level}\n`;
+      if (data.price_insights.typical_price_range) {
+        markdown += `- **Typical Range**: $${data.price_insights.typical_price_range.join(' - $')}\n`;
+      }
+      markdown += `\n`;
+    }
+    return markdown;
+  }
+
+  // Add best flights
+  if (data.best_flights && params.max_best_flights && params.max_best_flights > 0) {
+    markdown += `## Best Flights\n\n`;
+    const bestFlights = data.best_flights.slice(0, params.max_best_flights);
+    
+    bestFlights.forEach((flight: any, index: number) => {
+      markdown += `### Flight ${index + 1} - $${flight.price}\n`;
+      markdown += `- **Duration**: ${flight.total_duration}\n`;
+      markdown += `- **Type**: ${flight.type}\n`;
+      if (flight.carbon_emissions?.this_flight) {
+        markdown += `- **CO₂ Emissions**: ${flight.carbon_emissions.this_flight}kg\n`;
+      }
+      
+      if (flight.flights && flight.flights.length > 0) {
+        markdown += `- **Segments**:\n`;
+        flight.flights.forEach((segment: any, segIndex: number) => {
+          markdown += `  ${segIndex + 1}. **${segment.airline}** ${segment.flight_number}\n`;
+          markdown += `     - ${segment.departure_airport} → ${segment.arrival_airport}\n`;
+          markdown += `     - Duration: ${segment.duration}\n`;
+          markdown += `     - Class: ${segment.travel_class}\n`;
+          if (segment.overnight) markdown += `     - Overnight flight\n`;
+          if (segment.often_delayed_by_over_30_min) markdown += `     - ⚠️ Often delayed >30min\n`;
+        });
+      }
+      markdown += `\n`;
+    });
+  }
+
+  // Add other flights
+  if (data.other_flights && params.max_other_flights && params.max_other_flights > 0) {
+    markdown += `## Other Flight Options\n\n`;
+    const otherFlights = data.other_flights.slice(0, params.max_other_flights);
+    
+    otherFlights.forEach((flight: any, index: number) => {
+      markdown += `### Option ${index + 1} - $${flight.price}\n`;
+      markdown += `- **Duration**: ${flight.total_duration}\n`;
+      markdown += `- **Type**: ${flight.type}\n`;
+      
+      if (flight.layovers && flight.layovers.length > 0) {
+        markdown += `- **Layovers**: ${flight.layovers.map((l: any) => `${l.name} (${l.duration})`).join(', ')}\n`;
+      }
+      
+      if (flight.carbon_emissions?.this_flight) {
+        markdown += `- **CO₂ Emissions**: ${flight.carbon_emissions.this_flight}kg\n`;
+      }
+      
+      if (flight.flights && flight.flights.length > 0) {
+        markdown += `- **Segments**:\n`;
+        flight.flights.forEach((segment: any, segIndex: number) => {
+          markdown += `  ${segIndex + 1}. **${segment.airline}** ${segment.flight_number}\n`;
+          markdown += `     - ${segment.departure_airport} → ${segment.arrival_airport}\n`;
+          markdown += `     - Duration: ${segment.duration}\n`;
+          markdown += `     - Class: ${segment.travel_class}\n`;
+          if (segment.overnight) markdown += `     - Overnight flight\n`;
+          if (segment.often_delayed_by_over_30_min) markdown += `     - ⚠️ Often delayed >30min\n`;
+        });
+      }
+      markdown += `\n`;
+    });
+  }
+
+  // Add price insights for detailed view
+  if (params.include_price_insights !== false && data.price_insights && !params.summary_only) {
+    markdown += `## Price Insights\n`;
+    markdown += `- **Lowest Price**: $${data.price_insights.lowest_price}\n`;
+    markdown += `- **Price Level**: ${data.price_insights.price_level}\n`;
+    if (data.price_insights.typical_price_range) {
+      markdown += `- **Typical Range**: $${data.price_insights.typical_price_range.join(' - $')}\n`;
+    }
+    markdown += `\n`;
+  }
+
+  return markdown;
+}
+
 function filterFlightResponse(
   data: any,
   params: z.infer<typeof airportsSearchSchema>
@@ -119,7 +225,6 @@ function filterFlightResponse(
         total_duration: flight.total_duration,
         price: flight.price,
         type: flight.type,
-        airline_logo: flight.airline_logo,
         carbon_emissions: flight.carbon_emissions,
       }));
   }
@@ -146,7 +251,6 @@ function filterFlightResponse(
         total_duration: flight.total_duration,
         price: flight.price,
         type: flight.type,
-        airline_logo: flight.airline_logo,
         carbon_emissions: flight.carbon_emissions,
       }));
   }
@@ -168,7 +272,7 @@ function filterFlightResponse(
 
 export async function searchAirports(
   params: z.infer<typeof airportsSearchSchema>
-) {
+): Promise<string> {
   const apiKey = process.env.SERP_API_KEY;
   if (!apiKey) {
     throw new Error("SERP_API_KEY environment variable is required");
@@ -202,7 +306,7 @@ export async function searchAirports(
     const response = await axios.get(
       `${SERPAPI_BASE_URL}?${searchParams.toString()}`
     );
-    return filterFlightResponse(response.data, params);
+    return formatFlightToMarkdown(response.data, params);
   } catch (error) {
     if (axios.isAxiosError(error)) {
       throw new Error(
