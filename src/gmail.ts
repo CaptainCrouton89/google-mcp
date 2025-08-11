@@ -45,6 +45,91 @@ export const createLabelSchema = z.object({
     .describe("Label list visibility"),
 });
 
+// Markdown formatting helpers
+function formatEmailListToMarkdown(emails: any[]): string {
+  if (!emails.length) return "No emails found.";
+  
+  let markdown = `# Inbox (${emails.length} emails)\n\n`;
+  
+  emails.forEach((email, index) => {
+    const date = new Date(email.date).toLocaleDateString();
+    const from = email.from.replace(/[<>]/g, '');
+    const subject = email.subject || '(No Subject)';
+    const snippet = email.snippet || '';
+    
+    markdown += `## ${index + 1}. ${subject}\n`;
+    markdown += `From: ${from}  \n`;
+    markdown += `Date: ${date}  \n`;
+    markdown += `ID: \`${email.id}\`\n\n`;
+    
+    if (snippet) {
+      markdown += `${snippet}\n\n`;
+    }
+    
+    markdown += `---\n\n`;
+  });
+  
+  return markdown;
+}
+
+function formatEmailToMarkdown(email: any): string {
+  const date = new Date(email.date).toLocaleDateString();
+  const from = email.from.replace(/[<>]/g, '');
+  const to = email.to.replace(/[<>]/g, '');
+  const subject = email.subject || '(No Subject)';
+  
+  let markdown = `# ${subject}\n\n`;
+  markdown += `From: ${from}  \n`;
+  markdown += `To: ${to}  \n`;
+  if (email.cc) markdown += `CC: ${email.cc.replace(/[<>]/g, '')}  \n`;
+  if (email.bcc) markdown += `BCC: ${email.bcc.replace(/[<>]/g, '')}  \n`;
+  markdown += `Date: ${date}  \n`;
+  markdown += `Message ID: \`${email.id}\`\n\n`;
+  
+  if (email.body) {
+    markdown += `---\n\n${email.body}\n`;
+  }
+  
+  return markdown;
+}
+
+function formatLabelsToMarkdown(labels: any[]): string {
+  if (!labels.length) return "No labels found.";
+  
+  let markdown = `# Gmail Labels (${labels.length})\n\n`;
+  
+  const systemLabels = labels.filter(label => label.type === 'system');
+  const userLabels = labels.filter(label => label.type === 'user');
+  
+  if (systemLabels.length) {
+    markdown += `## System Labels\n\n`;
+    systemLabels.forEach(label => {
+      markdown += `- ${label.name} (\`${label.id}\`)`;
+      if (label.messagesUnread > 0) {
+        markdown += ` - ${label.messagesUnread} unread`;
+      }
+      markdown += `\n`;
+    });
+    markdown += `\n`;
+  }
+  
+  if (userLabels.length) {
+    markdown += `## Custom Labels\n\n`;
+    userLabels.forEach(label => {
+      markdown += `- ${label.name} (\`${label.id}\`)`;
+      if (label.messagesTotal) {
+        markdown += ` - ${label.messagesTotal} total`;
+        if (label.messagesUnread > 0) {
+          markdown += `, ${label.messagesUnread} unread`;
+        }
+      }
+      markdown += `\n`;
+    });
+  }
+  
+  return markdown;
+}
+
 // OAuth2 Authentication helper
 function createGmailAuth() {
   const clientId = process.env.GOOGLE_CLIENT_ID;
@@ -107,15 +192,7 @@ export async function sendEmail(params: z.infer<typeof sendEmailSchema>) {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(
-            {
-              success: true,
-              messageId: response.data.id,
-              threadId: response.data.threadId,
-            },
-            null,
-            2
-          ),
+          text: `# Email Sent Successfully ✅\n\nMessage ID: \`${response.data.id}\`  \nThread ID: \`${response.data.threadId}\`  \nTo: ${params.to}  \nSubject: ${params.subject}`,
         },
       ],
     };
@@ -154,7 +231,7 @@ export async function readEmails(params: z.infer<typeof readEmailsSchema>) {
         content: [
           {
             type: "text" as const,
-            text: "No emails found matching the criteria.",
+            text: "# No Emails Found\n\nNo emails found matching your search criteria.",
           },
         ],
       };
@@ -194,7 +271,7 @@ export async function readEmails(params: z.infer<typeof readEmailsSchema>) {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(emailDetails, null, 2),
+          text: formatEmailListToMarkdown(emailDetails),
         },
       ],
     };
@@ -269,7 +346,7 @@ export async function getEmail(params: z.infer<typeof getEmailSchema>) {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(emailDetail, null, 2),
+          text: formatEmailToMarkdown(emailDetail),
         },
       ],
     };
@@ -311,7 +388,7 @@ export async function getLabels() {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(labels, null, 2),
+          text: formatLabelsToMarkdown(labels || []),
         },
       ],
     };

@@ -3,6 +3,105 @@ import { z } from "zod";
 
 const googleMapsClient = new Client({});
 
+// Markdown formatting helpers
+function formatLocationToMarkdown(title: string, address: string, lat: number, lng: number, placeId?: string): string {
+  let markdown = `# ${title}\n\n`;
+  markdown += `Address: ${address}  \n`;
+  markdown += `Coordinates: ${lat}, ${lng}  \n`;
+  if (placeId) markdown += `Place ID: \`${placeId}\`  \n`;
+  markdown += `Google Maps: [View on Maps](https://maps.google.com/?q=${lat},${lng})`;
+  return markdown;
+}
+
+function formatPlacesToMarkdown(places: any[]): string {
+  if (!places.length) return "No places found.";
+  
+  let markdown = `# Places Search Results (${places.length})\n\n`;
+  
+  places.forEach((place, index) => {
+    markdown += `## ${index + 1}. ${place.name}\n`;
+    markdown += `Address: ${place.formatted_address}  \n`;
+    if (place.rating) {
+      markdown += `Rating: ${place.rating}⭐  \n`;
+    }
+    if (place.latitude && place.longitude) {
+      markdown += `Location: ${place.latitude}, ${place.longitude}  \n`;
+      markdown += `Maps: [View](https://maps.google.com/?q=${place.latitude},${place.longitude})  \n`;
+    }
+    if (place.place_id) {
+      markdown += `Place ID: \`${place.place_id}\`  \n`;
+    }
+    markdown += `\n`;
+  });
+  
+  return markdown;
+}
+
+function formatDirectionsToMarkdown(route: any): string {
+  let markdown = `# Directions: ${route.start_address} → ${route.end_address}\n\n`;
+  markdown += `Distance: ${route.distance}  \n`;
+  markdown += `Duration: ${route.duration}  \n\n`;
+  
+  if (route.steps && route.steps.length) {
+    markdown += `## Step-by-Step Directions\n\n`;
+    route.steps.forEach((step: any, index: number) => {
+      markdown += `${index + 1}. ${step.instruction} *(${step.distance}, ${step.duration})*\n`;
+    });
+  }
+  
+  return markdown;
+}
+
+function formatDistanceMatrixToMarkdown(results: any[]): string {
+  let markdown = `# Distance Matrix Results\n\n`;
+  
+  results.forEach((result, index) => {
+    markdown += `## ${index + 1}. ${result.origin} → ${result.destination}\n`;
+    markdown += `Distance: ${result.distance}  \n`;
+    markdown += `Duration: ${result.duration}  \n`;
+    markdown += `Status: ${result.status}  \n\n`;
+  });
+  
+  return markdown;
+}
+
+function formatPlaceDetailsToMarkdown(place: any): string {
+  let markdown = `# ${place.name}\n\n`;
+  
+  if (place.formatted_address) markdown += `Address: ${place.formatted_address}  \n`;
+  if (place.phone_number) markdown += `Phone: ${place.phone_number}  \n`;
+  if (place.website) markdown += `Website: [Visit](${place.website})  \n`;
+  
+  if (place.rating) {
+    markdown += `Rating: ${place.rating}⭐`;
+    if (place.user_ratings_total) markdown += ` (${place.user_ratings_total} reviews)`;
+    markdown += `  \n`;
+  }
+  
+  if (place.price_level !== undefined) {
+    const priceSymbols = '$'.repeat(place.price_level + 1);
+    markdown += `Price Level: ${priceSymbols}  \n`;
+  }
+  
+  if (place.latitude && place.longitude) {
+    markdown += `Location: ${place.latitude}, ${place.longitude}  \n`;
+    markdown += `Maps: [View](https://maps.google.com/?q=${place.latitude},${place.longitude})  \n`;
+  }
+  
+  if (place.opening_hours && place.opening_hours.length) {
+    markdown += `\n## Hours\n`;
+    place.opening_hours.forEach((hours: string) => {
+      markdown += `- ${hours}\n`;
+    });
+  }
+  
+  if (place.types && place.types.length) {
+    markdown += `\nCategories: ${place.types.join(', ')}`;
+  }
+  
+  return markdown;
+}
+
 export const geocodeSchema = z.object({
   address: z.string().describe("The address to geocode"),
 });
@@ -77,16 +176,12 @@ export async function geocode(
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(
-            {
-              formatted_address: location.formatted_address,
-              latitude: location.geometry.location.lat,
-              longitude: location.geometry.location.lng,
-              place_id: location.place_id,
-              types: location.types,
-            },
-            null,
-            2
+          text: formatLocationToMarkdown(
+            "Geocoded Location", 
+            location.formatted_address, 
+            location.geometry.location.lat, 
+            location.geometry.location.lng,
+            location.place_id
           ),
         },
       ],
@@ -139,14 +234,12 @@ export async function reverseGeocode(
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(
-            {
-              formatted_address: location.formatted_address,
-              place_id: location.place_id,
-              types: location.types,
-            },
-            null,
-            2
+          text: formatLocationToMarkdown(
+            "Reverse Geocoded Location",
+            location.formatted_address,
+            params.latitude,
+            params.longitude,
+            location.place_id
           ),
         },
       ],
@@ -217,7 +310,7 @@ export async function placesSearch(
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(places, null, 2),
+          text: formatPlacesToMarkdown(places),
         },
       ],
     };
@@ -269,25 +362,23 @@ export async function getDirections(
     const route = routes[0];
     const leg = route.legs[0];
 
+    const routeData = {
+      distance: leg.distance.text,
+      duration: leg.duration.text,
+      start_address: leg.start_address,
+      end_address: leg.end_address,
+      steps: leg.steps.map((step) => ({
+        instruction: step.html_instructions.replace(/<[^>]*>/g, ""),
+        distance: step.distance.text,
+        duration: step.duration.text,
+      })),
+    };
+
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(
-            {
-              distance: leg.distance.text,
-              duration: leg.duration.text,
-              start_address: leg.start_address,
-              end_address: leg.end_address,
-              steps: leg.steps.map((step) => ({
-                instruction: step.html_instructions.replace(/<[^>]*>/g, ""),
-                distance: step.distance.text,
-                duration: step.duration.text,
-              })),
-            },
-            null,
-            2
-          ),
+          text: formatDirectionsToMarkdown(routeData),
         },
       ],
     };
@@ -344,7 +435,7 @@ export async function distanceMatrix(
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(results, null, 2),
+          text: formatDistanceMatrixToMarkdown(results),
         },
       ],
     };
@@ -381,27 +472,25 @@ export async function placeDetails(
 
     const place = response.data.result;
 
+    const placeData = {
+      name: place.name,
+      formatted_address: place.formatted_address,
+      phone_number: place.formatted_phone_number,
+      website: place.website,
+      rating: place.rating,
+      user_ratings_total: place.user_ratings_total,
+      price_level: place.price_level,
+      opening_hours: place.opening_hours?.weekday_text,
+      types: place.types,
+      latitude: place.geometry?.location.lat,
+      longitude: place.geometry?.location.lng,
+    };
+
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(
-            {
-              name: place.name,
-              formatted_address: place.formatted_address,
-              phone_number: place.formatted_phone_number,
-              website: place.website,
-              rating: place.rating,
-              user_ratings_total: place.user_ratings_total,
-              price_level: place.price_level,
-              opening_hours: place.opening_hours?.weekday_text,
-              types: place.types,
-              latitude: place.geometry?.location.lat,
-              longitude: place.geometry?.location.lng,
-            },
-            null,
-            2
-          ),
+          text: formatPlaceDetailsToMarkdown(placeData),
         },
       ],
     };

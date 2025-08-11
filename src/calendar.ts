@@ -5,6 +5,95 @@ import { z } from "zod";
 let availableCalendars: Array<{ id: string; summary: string }> = [];
 let systemTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
+// Markdown formatting helpers
+function formatEventToMarkdown(event: any): string {
+  let markdown = `# ${event.summary || 'Untitled Event'}\n\n`;
+  
+  if (event.description) markdown += `${event.description}\n\n`;
+  
+  const startDate = event.start?.dateTime ? new Date(event.start.dateTime) : null;
+  const endDate = event.end?.dateTime ? new Date(event.end.dateTime) : null;
+  
+  if (startDate) {
+    markdown += `Start: ${startDate.toLocaleString()}  \n`;
+  }
+  if (endDate) {
+    markdown += `End: ${endDate.toLocaleString()}  \n`;
+  }
+  
+  if (event.location) markdown += `Location: ${event.location}  \n`;
+  
+  if (event.attendees && event.attendees.length > 0) {
+    markdown += `Attendees: ${event.attendees.map((a: any) => {
+      let attendee = a.email || a;
+      if (a.responseStatus) {
+        const status = a.responseStatus === 'accepted' ? '✅' : 
+                     a.responseStatus === 'declined' ? '❌' : 
+                     a.responseStatus === 'tentative' ? '❓' : '⏳';
+        attendee += ` ${status}`;
+      }
+      return attendee;
+    }).join(', ')}  \n`;
+  }
+  
+  if (event.htmlLink) markdown += `Calendar Link: [View Event](${event.htmlLink})  \n`;
+  if (event.id) markdown += `Event ID: \`${event.id}\`  \n`;
+  
+  return markdown;
+}
+
+function formatEventListToMarkdown(events: any[], totalResults: number): string {
+  if (!events.length) return "# No Upcoming Events\n\nNo events found in the specified time range.";
+  
+  let markdown = `# Upcoming Events (${totalResults})\n\n`;
+  
+  events.forEach((event, index) => {
+    const startDate = event.start?.dateTime ? new Date(event.start.dateTime) : null;
+    const endDate = event.end?.dateTime ? new Date(event.end.dateTime) : null;
+    
+    markdown += `## ${index + 1}. ${event.summary || 'Untitled Event'}\n`;
+    
+    if (startDate) {
+      if (endDate && startDate.toDateString() === endDate.toDateString()) {
+        // Same day event
+        markdown += `When: ${startDate.toLocaleDateString()} ${startDate.toLocaleTimeString()} - ${endDate.toLocaleTimeString()}  \n`;
+      } else {
+        markdown += `Start: ${startDate.toLocaleString()}  \n`;
+        if (endDate) markdown += `End: ${endDate.toLocaleString()}  \n`;
+      }
+    }
+    
+    if (event.location) markdown += `Location: ${event.location}  \n`;
+    if (event.description) markdown += `Description: ${event.description}  \n`;
+    if (event.attendees && event.attendees.length > 0) {
+      markdown += `Attendees: ${event.attendees.length} people  \n`;
+    }
+    if (event.id) markdown += `ID: \`${event.id}\`  \n`;
+    
+    markdown += `\n---\n\n`;
+  });
+  
+  return markdown;
+}
+
+function formatCalendarsToMarkdown(calendars: any[]): string {
+  if (!calendars.length) return "No calendars found.";
+  
+  let markdown = `# Available Calendars (${calendars.length})\n\n`;
+  
+  calendars.forEach((cal, index) => {
+    markdown += `## ${index + 1}. ${cal.summary || cal.id}\n`;
+    markdown += `ID: \`${cal.id}\`  \n`;
+    if (cal.description) markdown += `Description: ${cal.description}  \n`;
+    if (cal.timeZone) markdown += `Time Zone: ${cal.timeZone}  \n`;
+    if (cal.accessRole) markdown += `Access: ${cal.accessRole}  \n`;
+    if (cal.primary) markdown += `Primary: Yes ⭐  \n`;
+    markdown += `\n`;
+  });
+  
+  return markdown;
+}
+
 // Function to initialize calendar data
 export async function initializeCalendarData() {
   try {
@@ -219,22 +308,22 @@ export async function createEvent(
       sendUpdates: "all", // Send invitations to attendees
     });
 
+    const eventData = {
+      id: response.data.id,
+      summary: response.data.summary,
+      start: response.data.start,
+      end: response.data.end,
+      location: response.data.location,
+      description: response.data.description,
+      attendees: response.data.attendees,
+      htmlLink: response.data.htmlLink,
+    };
+
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(
-            {
-              success: true,
-              eventId: response.data.id,
-              htmlLink: response.data.htmlLink,
-              summary: response.data.summary,
-              start: response.data.start,
-              end: response.data.end,
-            },
-            null,
-            2
-          ),
+          text: `# Event Created Successfully ✅\n\n${formatEventToMarkdown(eventData)}`,
         },
       ],
     };
@@ -298,14 +387,7 @@ export async function listEvents(
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(
-            {
-              events: events || [],
-              totalResults: events?.length || 0,
-            },
-            null,
-            2
-          ),
+          text: formatEventListToMarkdown(events || [], events?.length || 0),
         },
       ],
     };
@@ -362,7 +444,7 @@ export async function getEvent(
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(eventDetail, null, 2),
+          text: formatEventToMarkdown(eventDetail),
         },
       ],
     };
@@ -421,20 +503,23 @@ export async function updateEvent(
       sendUpdates: "all",
     });
 
+    const updatedEventData = {
+      id: response.data.id,
+      summary: response.data.summary,
+      start: response.data.start,
+      end: response.data.end,
+      location: response.data.location,
+      description: response.data.description,
+      attendees: response.data.attendees,
+      htmlLink: response.data.htmlLink,
+      updated: response.data.updated,
+    };
+
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(
-            {
-              success: true,
-              eventId: response.data.id,
-              summary: response.data.summary,
-              updated: response.data.updated,
-            },
-            null,
-            2
-          ),
+          text: `# Event Updated Successfully ✅\n\n${formatEventToMarkdown(updatedEventData)}`,
         },
       ],
     };
@@ -470,14 +555,7 @@ export async function deleteEvent(
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(
-            {
-              success: true,
-              message: `Event ${params.eventId} deleted successfully`,
-            },
-            null,
-            2
-          ),
+          text: `# Event Deleted Successfully ✅\n\nEvent \`${params.eventId}\` has been deleted from your calendar.`,
         },
       ],
     };
@@ -522,7 +600,7 @@ export async function listCalendars(
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(calendars, null, 2),
+          text: formatCalendarsToMarkdown(calendars || []),
         },
       ],
     };
