@@ -119,7 +119,7 @@ server.tool(
 // Finance search tool
 server.tool(
   "finance-search",
-  "Search for stocks, indices, mutual funds, currencies, and futures using Google Finance",
+  "Search for stocks, indices, mutual funds, currencies, and futures using Google Finance. Use format 'SYMBOL:EXCHANGE'. Stocks: 'AAPL:NASDAQ', 'TSLA:NASDAQ'. ETFs/Index funds: 'SPY:NYSEARCA', 'VTI:NYSEARCA', 'QQQ:NASDAQ', 'VOO:NYSEARCA'. Crypto: 'BTC-USD', 'ETH-USD'. Note: Query 'SPY' (no exchange) returns market overview with S&P 500 related ETFs.",
   financeSearchSchema.shape,
   async (params) => {
     try {
